@@ -9,56 +9,51 @@ namespace WebsocketManager
 {
     public class websocketInterface
     {
-        private websocketContainer wsContainer = new websocketContainer();
-  
-        public void New(string URI, string Tag, PairedBiDirectionalBus Queue)
+        private Dictionary<string, websocketThreadWrapper> wsProcesses =
+            new Dictionary<string, websocketThreadWrapper>();
+        private PairedBiDirectionalBus masterQueue;
+
+        public websocketInterface(PairedBiDirectionalBus masterQueue)
         {
-            wsContainer.New(URI, Tag, Queue);
+            this.masterQueue = masterQueue;
         }
 
-        public void Start(string tag) {
-            wsContainer.Start(tag);
-        }
-    }
-    internal class websocketContainer
-    {
-        private Dictionary<string, websocketProcess> wsProcesses = 
-            new Dictionary<string, websocketProcess>();
-
-        internal void New(string URI, string tag, PairedBiDirectionalBus queue)
+        public void New(string URI, string tag)
         {
-            websocketProcess newWorker = 
-                new websocketProcess(URI, tag, queue);
+            websocketThreadWrapper newWorker =
+                new websocketThreadWrapper(URI, tag);
             wsProcesses.Add(tag, newWorker);
         }
 
-        internal void Start(string tag)
-        {
+        public void Start(string tag) {
             wsProcesses[tag].Start();
         }
     }
 
-    internal class websocketProcess
+    internal class websocketThreadWrapper
     {
         ParameterizedThreadStart threadStart = 
             new ParameterizedThreadStart(websocketProcessFunction);
         Thread threadObject;
 
-        string URI;
-        string tag;
+        PairedBiDirectionalBus queue = new PairedBiDirectionalBus();
+        string URI = string.Empty;
+        string tag = string.Empty;
 
-        PairedBiDirectionalBus queue;
-
-        public websocketProcess(string URI, string tag, PairedBiDirectionalBus queue)
+        public websocketThreadWrapper(string URI, string tag)
         {
             this.URI = URI;
             this.tag = tag;
-            this.queue = queue;
+
+            queue = 
+                new PairedBiDirectionalBus();
+
             threadObject = new Thread(threadStart);
         }
         
         public void Start()
         {
+            queue.Register();
             threadObject.Start(new object[] { queue, URI, tag });
         }
 
