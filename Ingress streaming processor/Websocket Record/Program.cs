@@ -117,7 +117,16 @@ namespace Websocket_Record
                 InboundPacket inboundPacket = inbound_queue.Take();
 
                 // Construct some information
-                if (inboundPacket.type.Equals("message"))
+                if (inboundPacket.type.Equals("open"))
+                {
+                    Subscribe subscribePacket = new Subscribe()
+                    {
+                        channels = new string[] { "full" },
+                        product_ids = common_objects.product_list()
+                    };
+                    websocketStore[inboundPacket.id].Send(JsonConvert.SerializeObject(subscribePacket));
+                }
+                else if (inboundPacket.type.Equals("message"))
                 {
                     GDAXPacket CastJSON = (GDAXPacket)inboundPacket.data;
                 }
@@ -136,13 +145,7 @@ namespace Websocket_Record
             websocketObj.OnOpen += (sender, e) =>
             {
                 // Here should query what packets is availible and subscribe to them all!
-                Subscribe subscribePacket = new Subscribe()
-                {
-                    channels = new string[] { "full" },
-                    product_ids = common_objects.product_list()
-                };
                 inbound_queue.Add(new InboundPacket(websocketID,"open"));
-                websocketObj.Send(JsonConvert.SerializeObject(subscribePacket));
             };
             websocketObj.OnError += (sender, e) =>
             {
