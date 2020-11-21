@@ -231,7 +231,7 @@ namespace Websocket_Record
                         // Pop it into the queue
                         inbound_queue.Add(new InboundPacket(websocketID, "message", CastJSON));
                     }
-                }`
+                }
             };
             websocketObj.Connect();
             return websocketObj;

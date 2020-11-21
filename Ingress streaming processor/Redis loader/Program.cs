@@ -85,7 +85,7 @@ namespace Redis_loader
             else if (websocketEvent.Equals("MESSAGE"))
             {
                 GDAXExchangePacket CastJSON = (GDAXExchangePacket)message;
-                Console.WriteLine("Currency: {0}", CastJSON.product_id);
+                Console.WriteLine("Packet: {0} processed.", packet_seq);
             }
             else if (websocketEvent.Equals("ERROR"))
             {
@@ -96,6 +96,10 @@ namespace Redis_loader
             {
                 Console.WriteLine("Websocket closed connection");
                 Environment.Exit(1);
+            }
+            else
+            {
+                Console.WriteLine("Unknown websocket event: {0}", websocketEvent);
             }
         }
     }

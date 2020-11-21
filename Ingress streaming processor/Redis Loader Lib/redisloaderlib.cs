@@ -53,7 +53,6 @@ namespace GDAXWebsocketClient
 {
     public class gdaxWebsocket
     {
-        private static object parentWebsocket;
         private static ulong packetID = 0;
         public static Action<string, ulong, object> parentFunction;
         private ConcurrentQueue<string> SendQueue = 
@@ -61,6 +60,7 @@ namespace GDAXWebsocketClient
 
         public gdaxWebsocket(Action<string, ulong, object> announceFunction) { 
             parentFunction = announceFunction;
+            packetID = 0;
 
             ParameterizedThreadStart streamProcessorStart =
                 new ParameterizedThreadStart(gdaxWebSocketFeed);
@@ -105,10 +105,11 @@ namespace GDAXWebsocketClient
                 {
                     Thread.Sleep(100);
                 }
-                else
-                {
-                    sendQueue.TryDequeue(out string sendData);
-                    wsClient.Send(sendData);
+                else if (sendQueue.TryDequeue(out string sendData)) { 
+                    if (sendData != null)
+                    {
+                        wsClient.Send(sendData);
+                    }
                 }
             }
         }
