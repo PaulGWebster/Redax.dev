@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29905.134
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Common", "Common\Common.csproj", "{A47C1B8D-25C8-4DCB-A955-6DCC5AD23ED8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Websocket Record", "Websocket Record\Websocket Record.csproj", "{4078FA44-574C-4B22-A076-277515C39CED}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Stream conversion service CORECLR", "Stream conversion service CORECLR\Stream conversion service CORECLR.csproj", "{C7C34BC2-CDC5-4038-8569-756D989DFE55}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Websocket Record Standard", "Websocket Record Standard\Websocket Record Standard.csproj", "{641BC4A5-E345-4DE8-A090-D7BEE474B834}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Websocket Record", "Websocket Record\Websocket Record.csproj", "{4078FA44-574C-4B22-A076-277515C39CED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redis loader", "Redis loader\Redis loader.csproj", "{ED9E05DD-C375-4BD4-94EA-0F445712143B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Websocket Record Standard", "Websocket Record Standard\Websocket Record Standard.csproj", "{641BC4A5-E345-4DE8-A090-D7BEE474B834}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redis Loader Lib", "Redis Loader Lib\Redis Loader Lib.csproj", "{C5851010-0916-420D-9013-2DB78F2FE880}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,14 +17,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{A47C1B8D-25C8-4DCB-A955-6DCC5AD23ED8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A47C1B8D-25C8-4DCB-A955-6DCC5AD23ED8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A47C1B8D-25C8-4DCB-A955-6DCC5AD23ED8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A47C1B8D-25C8-4DCB-A955-6DCC5AD23ED8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C7C34BC2-CDC5-4038-8569-756D989DFE55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C7C34BC2-CDC5-4038-8569-756D989DFE55}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C7C34BC2-CDC5-4038-8569-756D989DFE55}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C7C34BC2-CDC5-4038-8569-756D989DFE55}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4078FA44-574C-4B22-A076-277515C39CED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4078FA44-574C-4B22-A076-277515C39CED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4078FA44-574C-4B22-A076-277515C39CED}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -33,6 +25,14 @@ Global
 		{641BC4A5-E345-4DE8-A090-D7BEE474B834}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{641BC4A5-E345-4DE8-A090-D7BEE474B834}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{641BC4A5-E345-4DE8-A090-D7BEE474B834}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED9E05DD-C375-4BD4-94EA-0F445712143B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED9E05DD-C375-4BD4-94EA-0F445712143B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED9E05DD-C375-4BD4-94EA-0F445712143B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED9E05DD-C375-4BD4-94EA-0F445712143B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5851010-0916-420D-9013-2DB78F2FE880}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5851010-0916-420D-9013-2DB78F2FE880}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5851010-0916-420D-9013-2DB78F2FE880}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5851010-0916-420D-9013-2DB78F2FE880}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

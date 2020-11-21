@@ -12,9 +12,6 @@ namespace Websocket_Record
 {
     class Program
     {
-        static HelperClasses common_objects =
-            new HelperClasses();
-
         static BlockingCollection<InboundPacket> inbound_queue =
             new BlockingCollection<InboundPacket>();
         static ConcurrentDictionary<string,ulong> inboundPacketSequenceTracking =
@@ -23,11 +20,48 @@ namespace Websocket_Record
             new Dictionary<string, ConcurrentDictionary<ulong, bool>>();
         static ConcurrentDictionary<int, double> websocketActivityTracker =
             new ConcurrentDictionary<int, double>();
+        static string[] product_list = new string[] {
+                "BTC-USD",
+                "ETH-EUR",
+                "XRP-USD",
+                "LTC-EUR",
+                "BCH-USD",
+                "EOS-EUR",
+                "MKR-USD",
+                "XLM-EUR",
+                "XTZ-USD",
+                "ETC-EUR",
+                "OMG-USD",
+                "LINK-EUR",
+                "REP-USD",
+                "ZRX-EUR",
+                "ALGO-EUR",
+                "DAI-USD",
+                "COMP-USD",
+                "BAND-EUR",
+                "NMR-USD",
+                "CGLD-EUR",
+                "UMA-USD",
+                "YFI-USD",
+                "WBTC-USD",
+                "ETH-BTC",
+                "LTC-BTC",
+                "EOS-BTC",
+                "XLM-BTC",
+                "XTZ-BTC",
+                "OMG-BTC",
+                "BAT-ETH",
+                "ZRX-BTC",
+                "COMP-BTC",
+                "NMR-BTC",
+                "UMA-BTC",
+                "WBTC-BTC"
+            };
 
         static void Main(string[] args)
         {
             // Populate inbound_queue_sequence_guard
-            foreach (string currencyKey in common_objects.product_list()) {
+            foreach (string currencyKey in product_list) {
                 while (inboundPacketSequenceTracking.TryAdd(currencyKey, 0) == false)
                 {
                     Thread.Sleep(1);
@@ -55,7 +89,7 @@ namespace Websocket_Record
 
         private static void garbageMaintainance()
         {
-            string[] currencyList = common_objects.product_list();
+            string[] currencyList = (string[])product_list.Clone();
 
             while (true)
             {
@@ -95,9 +129,6 @@ namespace Websocket_Record
 
         private static void gdaxWebSocketFeed()
         {
-            // Quick access to subscribe packet etc
-            HelperClasses common_objects = new HelperClasses();
-
             // A place to store out websocket objects
             List<WebSocket> websocketStore =
                 new List<WebSocket>();
@@ -122,8 +153,8 @@ namespace Websocket_Record
                     Subscribe subscribePacket = new Subscribe()
                     {
                         channels = new string[] { "full" },
-                        product_ids = common_objects.product_list()
-                    };
+                        product_ids = (string[])product_list.Clone()
+                };
                     websocketStore[inboundPacket.id].Send(JsonConvert.SerializeObject(subscribePacket));
                 }
                 else if (inboundPacket.type.Equals("message"))
@@ -139,8 +170,6 @@ namespace Websocket_Record
                 new WebSocket("wss://ws-feed.pro.coinbase.com");
             websocketObj.SslConfiguration.EnabledSslProtocols =
                 System.Security.Authentication.SslProtocols.Tls12;
-            websocketObj.EmitOnPing =
-                false;
 
             websocketObj.OnOpen += (sender, e) =>
             {
@@ -202,7 +231,7 @@ namespace Websocket_Record
                         // Pop it into the queue
                         inbound_queue.Add(new InboundPacket(websocketID, "message", CastJSON));
                     }
-                }
+                }`
             };
             websocketObj.Connect();
             return websocketObj;

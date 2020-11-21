@@ -3,49 +3,6 @@ using System.Collections.Generic;
 
 namespace Websocket_Record_Standard
 {
-    public class HelperClasses
-    {
-        public string[] product_list()
-        {
-            return new string[] {
-                "BTC-USD",
-                "ETH-EUR",
-                "XRP-USD",
-                "LTC-EUR",
-                "BCH-USD",
-                "EOS-EUR",
-                "MKR-USD",
-                "XLM-EUR",
-                "XTZ-USD",
-                "ETC-EUR",
-                "OMG-USD",
-                "LINK-EUR",
-                "REP-USD",
-                "ZRX-EUR",
-                "ALGO-EUR",
-                "DAI-USD",
-                "COMP-USD",
-                "BAND-EUR",
-                "NMR-USD",
-                "CGLD-EUR",
-                "UMA-USD",
-                "YFI-USD",
-                "WBTC-USD",
-                "ETH-BTC",
-                "LTC-BTC",
-                "EOS-BTC",
-                "XLM-BTC",
-                "XTZ-BTC",
-                "OMG-BTC",
-                "BAT-ETH",
-                "ZRX-BTC",
-                "COMP-BTC",
-                "NMR-BTC",
-                "UMA-BTC",
-                "WBTC-BTC"
-            };
-        }
-    }
     public class GDAXPacket
     {
 #pragma warning disable CS0649
