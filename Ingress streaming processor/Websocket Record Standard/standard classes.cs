@@ -93,6 +93,10 @@ namespace Websocket_Record_Standard
         private string packetType;
         private object packetData;
 
+        public InboundPacket()
+        {
+        }
+
         public InboundPacket(int websocketID, string packetType)
         {
             this.websocketID = websocketID;
@@ -112,6 +116,10 @@ namespace Websocket_Record_Standard
         public string type
         {
             get { return packetType; }
+        }
+        public object data
+        {
+            get { return packetData; }
         }
     }
 }
