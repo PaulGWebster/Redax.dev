@@ -49,7 +49,7 @@ namespace Redis_loader
 
         static void Main(string[] args)
         {
-            string redisDSN = "10.200.200.1:6379";
+            string redisDSN = "127.0.0.1:6379";
 
             // Connect to our storage database
             rdclient = new redisClient(redisDSN, redisMessage);
@@ -91,11 +91,11 @@ namespace Redis_loader
             {
                 GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[1];
                 string jsonAsString = (string)message[2];
-                rdclient.StringSetFireAndForget(
-                    string.Join(":",CastJSON.product_id,CastJSON.sequence),
-                    jsonAsString
-                );
-                if ((packet_seq % 1000) == 0)
+                //rdclient.StringSetFireAndForget(
+                //    string.Join(":",CastJSON.product_id,CastJSON.sequence),
+                //    jsonAsString
+                //);
+                if ((packet_seq % 10000) == 0)
                 {
                     Console.WriteLine("[{0}] {1} processed", websocketID,packet_seq);
                 }
