@@ -70,7 +70,7 @@ namespace Redis_loader
             Console.WriteLine("REDIS({0}): {1}", channel, message);
         }
 
-        private static void websocketMessage(string websocketEvent, ulong packet_seq, object message)
+        private static void websocketMessage(string websocketEvent, ulong packet_seq, object[] message)
         {
             if (websocketEvent.Equals("OPEN"))
             {
@@ -84,8 +84,12 @@ namespace Redis_loader
             }
             else if (websocketEvent.Equals("MESSAGE"))
             {
-                GDAXExchangePacket CastJSON = (GDAXExchangePacket)message;
-                Console.WriteLine("Packet: {0} processed.", packet_seq);
+                GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[0];
+                string jsonAsString = (string)message[1];
+                rdclient.StringSet(
+                    string.Join(":",CastJSON.product_id,CastJSON.sequence),
+                    jsonAsString
+                );
             }
             else if (websocketEvent.Equals("ERROR"))
             {

@@ -46,6 +46,16 @@ namespace RedisLoader
                 return redisObj.IsConnected;
             }
         }
+
+        public void StringSet(string key, string value)
+        {
+            redisDB.StringSet(
+                key,
+                value,
+                new TimeSpan(1, 0, 0),
+                flags: CommandFlags.FireAndForget
+            );
+        }
     }
 }
 
@@ -54,11 +64,11 @@ namespace GDAXWebsocketClient
     public class gdaxWebsocket
     {
         private static ulong packetID = 0;
-        public static Action<string, ulong, object> parentFunction;
+        public static Action<string, ulong, object[]> parentFunction;
         private ConcurrentQueue<string> SendQueue = 
             new ConcurrentQueue<string>();
 
-        public gdaxWebsocket(Action<string, ulong, object> announceFunction) { 
+        public gdaxWebsocket(Action<string, ulong, object[]> announceFunction) { 
             parentFunction = announceFunction;
             packetID = 0;
 
@@ -80,21 +90,21 @@ namespace GDAXWebsocketClient
 
             wsClient.OnOpen += (sender, e) =>
             {
-                parentFunction("OPEN", packetID++, e);
+                parentFunction("OPEN", packetID++, new object[] { e });
             };
             wsClient.OnError += (sender, e) =>
             {
-                parentFunction("ERROR", packetID++, e);
+                parentFunction("ERROR", packetID++, new object[] { e });
             };
             wsClient.OnClose += (sender, e) =>
             {
-                parentFunction("CLOSE", packetID++, e);
+                parentFunction("CLOSE", packetID++, new object[] { e });
             };
             wsClient.OnMessage += (sender, e) =>
             {
                 GDAXExchangePacket CastJSON =
                     JsonConvert.DeserializeObject<GDAXExchangePacket>(e.Data);
-                parentFunction("MESSAGE", packetID++, CastJSON);
+                parentFunction("MESSAGE", packetID++, new object[] { CastJSON, e.Data });
             };
 
             wsClient.Connect();
