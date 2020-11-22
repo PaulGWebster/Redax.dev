@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using Newtonsoft.Json;
 using StackExchange.Redis;
@@ -63,26 +64,34 @@ namespace GDAXWebsocketClient
 {
     public class gdaxWebsocket
     {
-        private static ulong packetID = 0;
         public static Action<string, ulong, object[]> parentFunction;
-        private ConcurrentQueue<string> SendQueue = 
-            new ConcurrentQueue<string>();
+        private static Dictionary<int,ConcurrentQueue<string>> SendQueue = 
+            new Dictionary<int,ConcurrentQueue<string>> ();
 
-        public gdaxWebsocket(Action<string, ulong, object[]> announceFunction) { 
+        public int websocketID { get; }
+
+        public gdaxWebsocket(Action<string, ulong, object[]> announceFunction, int wsID) { 
             parentFunction = announceFunction;
-            packetID = 0;
 
             ParameterizedThreadStart streamProcessorStart =
                 new ParameterizedThreadStart(gdaxWebSocketFeed);
             Thread streamProcessor =
                 new Thread(streamProcessorStart);
 
-            streamProcessor.Start(SendQueue);
+            websocketID = wsID;
+            SendQueue.Add(websocketID, new ConcurrentQueue<string> ());
+
+            streamProcessor.Start(new object[] { websocketID, SendQueue });
         }
 
-        private void gdaxWebSocketFeed(object sendQueueObj)
+        private void gdaxWebSocketFeed(object passedArgs)
         {
-            ConcurrentQueue<string> sendQueue = (ConcurrentQueue<string>)sendQueueObj;
+            object[] passedArgsArray = (object[])passedArgs;
+
+            ulong packetID = 0;
+            int websocketID = (int)passedArgsArray[0];
+            Dictionary<int,ConcurrentQueue<string>> sendQueue = 
+                (Dictionary<int,ConcurrentQueue<string>>)passedArgsArray[1];
 
             WebSocket wsClient = new WebSocket("wss://ws-feed.pro.coinbase.com");
             wsClient.SslConfiguration.EnabledSslProtocols =
@@ -90,21 +99,21 @@ namespace GDAXWebsocketClient
 
             wsClient.OnOpen += (sender, e) =>
             {
-                parentFunction("OPEN", packetID++, new object[] { e });
+                parentFunction("OPEN", packetID++, new object[] { websocketID, e });
             };
             wsClient.OnError += (sender, e) =>
             {
-                parentFunction("ERROR", packetID++, new object[] { e });
+                parentFunction("ERROR", packetID++, new object[] { websocketID, e });
             };
             wsClient.OnClose += (sender, e) =>
             {
-                parentFunction("CLOSE", packetID++, new object[] { e });
+                parentFunction("CLOSE", packetID++, new object[] { websocketID, e });
             };
             wsClient.OnMessage += (sender, e) =>
             {
                 GDAXExchangePacket CastJSON =
                     JsonConvert.DeserializeObject<GDAXExchangePacket>(e.Data);
-                parentFunction("MESSAGE", packetID++, new object[] { CastJSON, e.Data });
+                parentFunction("MESSAGE", packetID++, new object[] { websocketID, CastJSON, e.Data });
             };
 
             wsClient.Connect();
@@ -115,7 +124,7 @@ namespace GDAXWebsocketClient
                 {
                     Thread.Sleep(100);
                 }
-                else if (sendQueue.TryDequeue(out string sendData)) { 
+                else if (sendQueue[websocketID].TryDequeue(out string sendData)) { 
                     if (sendData != null)
                     {
                         wsClient.Send(sendData);
@@ -126,7 +135,7 @@ namespace GDAXWebsocketClient
 
         public void Send(string payload)
         {
-            SendQueue.Enqueue(payload);
+            SendQueue[websocketID].Enqueue(payload);
         }
     }
     public class GDAXExchangePacket

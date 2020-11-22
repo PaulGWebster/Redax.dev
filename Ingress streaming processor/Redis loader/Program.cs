@@ -8,7 +8,7 @@ namespace Redis_loader
     class Program
     {
         static redisClient rdclient;
-        static gdaxWebsocket wsclient;
+        static gdaxWebsocket[] wsclient;
         static string[] product_list = new string[] {
             "BTC-USD",
             "ETH-EUR",
@@ -60,7 +60,11 @@ namespace Redis_loader
             }
 
             // Create a websocker reader
-            wsclient = new gdaxWebsocket(websocketMessage);
+            wsclient = new gdaxWebsocket[3];
+            for (int i = 0;i < 3; i++)
+            {
+                wsclient[i] = new gdaxWebsocket(websocketMessage,i);
+            }
 
             Console.ReadLine();
         }
@@ -72,6 +76,7 @@ namespace Redis_loader
 
         private static void websocketMessage(string websocketEvent, ulong packet_seq, object[] message)
         {
+            int websocketID = (int)message[0];
             if (websocketEvent.Equals("OPEN"))
             {
                 Subscribe subscribePacket = new Subscribe()
@@ -80,16 +85,20 @@ namespace Redis_loader
                     product_ids = product_list
                 };
                 string payload = JsonConvert.SerializeObject(subscribePacket);
-                wsclient.Send(payload);
+                wsclient[websocketID].Send(payload);
             }
             else if (websocketEvent.Equals("MESSAGE"))
             {
-                GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[0];
-                string jsonAsString = (string)message[1];
+                GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[1];
+                string jsonAsString = (string)message[2];
                 rdclient.StringSet(
                     string.Join(":",CastJSON.product_id,CastJSON.sequence),
                     jsonAsString
                 );
+                if ((packet_seq % 1000) == 0)
+                {
+                    Console.WriteLine("[{0}] {1} processed", websocketID,packet_seq);
+                }
             }
             else if (websocketEvent.Equals("ERROR"))
             {
