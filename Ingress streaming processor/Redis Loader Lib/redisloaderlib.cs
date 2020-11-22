@@ -48,12 +48,18 @@ namespace RedisLoader
             }
         }
 
-        public void StringSet(string key, string value)
+        public void StringSetFireAndForget(
+            string      key,
+            string      value,
+            int hours   = 1,
+            int minutes = 0,
+            int seconds = 0
+        )
         {
             redisDB.StringSet(
                 key,
                 value,
-                new TimeSpan(1, 0, 0),
+                new TimeSpan(hours, minutes, seconds),
                 flags: CommandFlags.FireAndForget
             );
         }

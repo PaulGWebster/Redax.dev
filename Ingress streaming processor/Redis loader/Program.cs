@@ -91,7 +91,7 @@ namespace Redis_loader
             {
                 GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[1];
                 string jsonAsString = (string)message[2];
-                rdclient.StringSet(
+                rdclient.StringSetFireAndForget(
                     string.Join(":",CastJSON.product_id,CastJSON.sequence),
                     jsonAsString
                 );
