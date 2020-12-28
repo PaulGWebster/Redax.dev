@@ -47,7 +47,6 @@ namespace RedisLoader
                 return redisObj.IsConnected;
             }
         }
-
         public void StringSetFireAndForget(
             string      key,
             string      value,
@@ -63,6 +62,10 @@ namespace RedisLoader
                 flags: CommandFlags.FireAndForget
             );
         }
+        public void Announce(string jsonAsString)
+        {
+            pubsubInterface.Publish("streamraid", redisID.ToString() + " " + jsonAsString);
+        }
     }
 }
 
@@ -73,11 +76,22 @@ namespace GDAXWebsocketClient
         public static Action<string, ulong, object[]> parentFunction;
         private static Dictionary<int,ConcurrentQueue<string>> SendQueue = 
             new Dictionary<int,ConcurrentQueue<string>> ();
+        public static ConcurrentDictionary<string, ulong> quickDupCheck =
+            new ConcurrentDictionary<string, ulong>();
 
         public int websocketID { get; }
 
-        public gdaxWebsocket(Action<string, ulong, object[]> announceFunction, int wsID) { 
+        public gdaxWebsocket(Action<string, ulong, object[]> announceFunction, int wsID, string wsHost, string[] product_list) { 
             parentFunction = announceFunction;
+
+            // Initilize commonly used dictionaris if required
+            foreach (string product in product_list)
+            {
+                if (!quickDupCheck.ContainsKey(product))
+                {
+                    while (quickDupCheck.TryAdd(product, 0) == false) { }
+                }
+            }
 
             ParameterizedThreadStart streamProcessorStart =
                 new ParameterizedThreadStart(gdaxWebSocketFeed);
@@ -85,9 +99,16 @@ namespace GDAXWebsocketClient
                 new Thread(streamProcessorStart);
 
             websocketID = wsID;
-            SendQueue.Add(websocketID, new ConcurrentQueue<string> ());
+            if (SendQueue.ContainsKey(websocketID))
+            {
+                SendQueue[websocketID] = new ConcurrentQueue<string>();
+            }
+            else
+            {
+                SendQueue.Add(websocketID, new ConcurrentQueue<string>());
+            }
 
-            streamProcessor.Start(new object[] { websocketID, SendQueue });
+            streamProcessor.Start(new object[] { websocketID, SendQueue, wsHost });
         }
 
         private void gdaxWebSocketFeed(object passedArgs)
@@ -98,10 +119,9 @@ namespace GDAXWebsocketClient
             int websocketID = (int)passedArgsArray[0];
             Dictionary<int,ConcurrentQueue<string>> sendQueue = 
                 (Dictionary<int,ConcurrentQueue<string>>)passedArgsArray[1];
+            string wsHost = (string)passedArgsArray[2];
 
-            WebSocket wsClient = new WebSocket("wss://ws-feed.pro.coinbase.com");
-            wsClient.SslConfiguration.EnabledSslProtocols =
-                System.Security.Authentication.SslProtocols.Tls12;
+            WebSocket wsClient = new WebSocket(wsHost);
 
             wsClient.OnOpen += (sender, e) =>
             {
@@ -109,24 +129,48 @@ namespace GDAXWebsocketClient
             };
             wsClient.OnError += (sender, e) =>
             {
-                parentFunction("ERROR", packetID++, new object[] { websocketID, e });
+                parentFunction("ERROR", packetID++, new object[] { websocketID, "ERROR", "error handler triggered" });
+                return;
             };
             wsClient.OnClose += (sender, e) =>
             {
-                parentFunction("CLOSE", packetID++, new object[] { websocketID, e });
+                parentFunction("ERROR", packetID++, new object[] { websocketID, "CLOSE", e.Reason });
+                return;
             };
             wsClient.OnMessage += (sender, e) =>
             {
+                string rawJson = e.Data;
                 GDAXExchangePacket CastJSON =
-                    JsonConvert.DeserializeObject<GDAXExchangePacket>(e.Data);
-                parentFunction("MESSAGE", packetID++, new object[] { websocketID, CastJSON, e.Data });
+                    JsonConvert.DeserializeObject<GDAXExchangePacket>(rawJson);
+
+                string type = extractValueFromJson(rawJson, "type");
+
+                if (!type.Equals("subscriptions"))
+                {
+                    ulong sequence = Convert.ToUInt64(extractValueFromJson(rawJson, "sequence"));
+                    string product = extractValueFromJson(rawJson, "product_id");
+
+                    if (quickDupCheck[product] == 0)
+                    {
+                        quickDupCheck.TryUpdate(product, sequence, 0);
+                    }
+                    else if(sequence > quickDupCheck[product])
+                    {
+                        quickDupCheck.TryUpdate(product, sequence, sequence - 1);
+                    }
+                    else
+                    {
+                        return;
+                    }
+                    parentFunction("MESSAGE", packetID++, new object[] { websocketID, CastJSON, rawJson });
+                }
             };
 
             wsClient.Connect();
 
             while (wsClient.IsAlive)
             {
-                if (sendQueue.Count == 0)
+                if (sendQueue[websocketID].Count == 0)
                 {
                     Thread.Sleep(100);
                 }
@@ -137,11 +181,30 @@ namespace GDAXWebsocketClient
                     }
                 }
             }
+
+            parentFunction("ERROR", packetID++, new object[] { websocketID, "ERROR", "error handler triggered" });
         }
 
         public void Send(string payload)
         {
             SendQueue[websocketID].Enqueue(payload);
+        }
+
+        private static string extractValueFromJson(string input, string key)
+        {
+            int initialIndex = input.IndexOf(key) + key.Length + 1;
+            int finalIndex = input.IndexOf(",", initialIndex);
+
+            if (input.Substring(initialIndex, 2).Equals(":\""))
+            {
+                initialIndex += 1;
+                finalIndex -= 1;
+            }
+
+            initialIndex += 1;
+            finalIndex -= initialIndex;
+
+            return input.Substring(initialIndex, finalIndex);
         }
     }
     public class GDAXExchangePacket

@@ -1,0 +1,15 @@
+version: '3.4'
+
+services:
+  redisloader:
+    image: ${DOCKER_REGISTRY-}redisloader
+    build:
+      context: .
+      dockerfile: "RedisLoader/Dockerfile"
+    links:
+    - nginx
+    - redis
+  nginx:
+    image: paulgwebster/nginx-gdax-ws-wss-stepup:latest
+  redis:
+    image: paulgwebster/redis-unprotected:64m

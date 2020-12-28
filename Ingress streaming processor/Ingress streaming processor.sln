@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29905.134
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Redis loader", "Redis loader\Redis loader.csproj", "{ED9E05DD-C375-4BD4-94EA-0F445712143B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RedisLoader", "RedisLoader\Redis Loader.csproj", "{ED9E05DD-C375-4BD4-94EA-0F445712143B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Redis Loader Lib", "Redis Loader Lib\Redis Loader Lib.csproj", "{C5851010-0916-420D-9013-2DB78F2FE880}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RedisLoaderLib", "RedisLoaderLib\Redis Loader Lib.csproj", "{C5851010-0916-420D-9013-2DB78F2FE880}"
+EndProject
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{FE9778FB-3C76-4673-96EF-3D024A6FE583}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{C5851010-0916-420D-9013-2DB78F2FE880}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C5851010-0916-420D-9013-2DB78F2FE880}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C5851010-0916-420D-9013-2DB78F2FE880}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE9778FB-3C76-4673-96EF-3D024A6FE583}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE9778FB-3C76-4673-96EF-3D024A6FE583}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE9778FB-3C76-4673-96EF-3D024A6FE583}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE9778FB-3C76-4673-96EF-3D024A6FE583}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
