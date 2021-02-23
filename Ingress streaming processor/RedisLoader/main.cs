@@ -1,23 +1,23 @@
 ﻿using System;
-using RedisLoader;
-using GDAXWebsocketClient;
-using Newtonsoft.Json;
 using System.Threading;
 using System.Collections.Generic;
 
-namespace Redis_loader
+using GDAXWebsocketClient;
+using Newtonsoft.Json;
+
+namespace WStoTCPbridge
 {
     class Program
     {
-        static redisClient rdclient;
+        //static redisClient rdclient;
         static List<gdaxWebsocket> wsclient;
-        static ulong packetCount = 0;
-        static DateTime startTimeDate = DateTime.UtcNow;
-        static int parallelConnections = 4;
+        static int parallelConnections = 1;
+        static Dictionary<string, UInt64> seqCheck = 
+            new Dictionary<string, UInt64>();
+
         static string[] product_list = new string[] {
             "BTC-USD",
             "ETH-EUR",
-            "XRP-USD",
             "LTC-EUR",
             "BCH-USD",
             "EOS-EUR",
@@ -51,21 +51,17 @@ namespace Redis_loader
             "UMA-BTC",
             "WBTC-BTC"
         };
-        static string redisDSN = "redis:6379";
         static string wsHost = "ws://nginx:80";
         static void Main(string[] args)
         {
-            // Connect to our storage database
-            rdclient = new redisClient(redisDSN, redisMessage);
-            if (!rdclient.IsConnected)
-            {
-                Console.WriteLine("Connection to redis failed.");
-                Environment.Exit(1);
-            }
-
             // Create a websocker reader
             wsclient = new List<gdaxWebsocket> ();
-            initWebsocketWorker(0);
+
+            // Start the workers
+            for (int i = 0;i < parallelConnections;i++)
+            {
+                initWebsocketWorker(i);
+            }
 
             while (true)
             {
@@ -75,12 +71,6 @@ namespace Redis_loader
 
         private static void initWebsocketWorker(int i)
         {
-            if (i >= parallelConnections)
-            {
-                Console.WriteLine("Restricting websocket {0} from starting, > parallel count", i);
-                return;
-            }
-
             Console.WriteLine("[{0}] WebSocket connection initilizing",i);
             if (i < wsclient.Count)
             {
@@ -92,12 +82,7 @@ namespace Redis_loader
             }
         }
 
-        private static void redisMessage(string channel, string message)
-        {
-            //Console.WriteLine("REDIS({0}): {1}", channel, message);
-        }
-
-        private static void websocketMessage(string websocketEvent, ulong packet_seq, object[] message)
+        private static void websocketMessage(string websocketEvent, UInt64 packet_seq, object[] message)
         {
             int websocketID = (int)message[0];
             if (websocketEvent.Equals("OPEN"))
@@ -113,37 +98,45 @@ namespace Redis_loader
             }
             else if (websocketEvent.Equals("MESSAGE"))
             {
-                GDAXExchangePacket CastJSON = (GDAXExchangePacket)message[1];
                 string jsonAsString = (string)message[2];
-                rdclient.StringSetFireAndForget(
-                    string.Join(":", CastJSON.product_id, CastJSON.sequence),
-                    jsonAsString
-                );
+                string currencyName = (string)message[1];
 
-                // PubSub announce - All threads
-                rdclient.Announce(jsonAsString);
-
-                // Atomic increment hopefully
-                packetCount++;
-
-                // Management thread0 only
-                if (websocketID == 0)
+                // Check the sequence is initilized
+                if (!seqCheck.ContainsKey(currencyName))
                 {
-                    if (
-                        (packetCount * (ulong)wsclient.Count) % 15000 == 0 
-                        && wsclient.Count < parallelConnections
-                    )
-                    {
-                        initWebsocketWorker(wsclient.Count);
-                    }
-                    //else if ((packetCount % 2000) == 0)
-                    //{
-                    //    ulong runTimeInSeconds = (ulong)(DateTime.UtcNow - startTimeDate).TotalSeconds;
-                    //    string commaNumberTotalPackets = string.Format("{0:n0}", packetCount);
-                    //    string commaNumberPPS = string.Format("{0:n0}", packetCount / runTimeInSeconds);
-                    //    Console.Title = string.Format("Packets processed: {0}, PPS: {1}", commaNumberTotalPackets, commaNumberPPS);
-                    //}
+                    Console.WriteLine("Initilized seqCheck for '{0}' starting at: {1}", currencyName, packet_seq);
+                    seqCheck.Add(currencyName, packet_seq);
                 }
+                // Do not accept duplicate packets
+                else if (packet_seq <= seqCheck[currencyName])
+                {
+                    return;
+                }
+
+                // Increment the rx count (should do this in handler)
+                uint rxPacketCount = wsclient[websocketID].rxCount++;
+
+                // every 15k records drop stats
+                if (rxPacketCount % 15000 == 0)
+                {
+                    double initUT = 
+                        ConvertToUnixTimestamp(wsclient[websocketID].initTime);
+                    double currentUT =
+                        ConvertToUnixTimestamp(DateTime.UtcNow);
+                    double secondsPassed =
+                        (currentUT - initUT);
+
+                    Console.WriteLine(
+                        "Socket({0}): count: {1} runtime: {2} seconds pps: {3}",
+                        websocketID,
+                        wsclient[websocketID].rxCount,
+                        secondsPassed,
+                        (wsclient[websocketID].rxCount/secondsPassed).ToString("0")
+                    );
+                }
+
+                // Update the sequence
+                seqCheck[currencyName] = packet_seq;
             }
             else if (websocketEvent.Equals("ERROR"))
             {
@@ -168,6 +161,19 @@ namespace Redis_loader
             {
                 Console.WriteLine("Unknown websocket event: {0}", websocketEvent);
             }
+        }
+
+        private static DateTime ConvertFromUnixTimestamp(double timestamp)
+        {
+            DateTime origin = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+            return origin.AddSeconds(timestamp);
+        }
+
+        private static double ConvertToUnixTimestamp(DateTime date)
+        {
+            DateTime origin = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+            TimeSpan diff = date.ToUniversalTime() - origin;
+            return Math.Floor(diff.TotalSeconds);
         }
     }
 }

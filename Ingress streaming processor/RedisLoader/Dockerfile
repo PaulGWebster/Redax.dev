@@ -5,17 +5,17 @@ WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/core/sdk:3.1-buster AS build
 WORKDIR /src
-COPY ["Redis loader/Redis Loader.csproj", "Redis loader/"]
-COPY ["Redis Loader Lib/Redis Loader Lib.csproj", "Redis Loader Lib/"]
-RUN dotnet restore "Redis loader/Redis Loader.csproj"
+COPY ["RedisLoader/GDAX Stream reader.csproj", "RedisLoader/"]
+COPY ["RedisLoaderLib/GDAX WS Client Lib.csproj", "RedisLoaderLib/"]
+RUN dotnet restore "RedisLoader/GDAX Stream reader.csproj"
 COPY . .
-WORKDIR "/src/Redis loader"
-RUN dotnet build "Redis Loader.csproj" -c Release -o /app/build
+WORKDIR "/src/RedisLoader"
+RUN dotnet build "GDAX Stream reader.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "Redis Loader.csproj" -c Release -o /app/publish
+RUN dotnet publish "GDAX Stream reader.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Redis Loader.dll"]
+ENTRYPOINT ["dotnet", "GDAX Stream reader.dll"]
