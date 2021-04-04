@@ -1,0 +1,18 @@
+c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\deps\typenum-df10a3b33bd73de0.rmeta: C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\lib.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\bit.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\int.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\marker_traits.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\operator_aliases.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\private.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\type_operators.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\uint.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\array.rs c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\op.rs c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\consts.rs
+
+c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\deps\typenum-df10a3b33bd73de0.d: C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\lib.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\bit.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\int.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\marker_traits.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\operator_aliases.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\private.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\type_operators.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\uint.rs C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\array.rs c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\op.rs c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\consts.rs
+
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\lib.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\bit.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\int.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\marker_traits.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\operator_aliases.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\private.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\type_operators.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\uint.rs:
+C:\Users\paulg\.cargo\registry\src\github.com-1ecc6299db9ec823\typenum-1.13.0\src\array.rs:
+c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\op.rs:
+c:\Users\paulg\Documents\project\redax.dev\project\target\rls\debug\build\typenum-cdee1b4bdfe7608a\out\consts.rs:
+
+# env-dep:TYPENUM_BUILD_CONSTS=c:\\Users\\paulg\\Documents\\project\\redax.dev\\project\\target\\rls\\debug\\build\\typenum-cdee1b4bdfe7608a\\out\\consts.rs
+# env-dep:TYPENUM_BUILD_OP=c:\\Users\\paulg\\Documents\\project\\redax.dev\\project\\target\\rls\\debug\\build\\typenum-cdee1b4bdfe7608a\\out\\op.rs
