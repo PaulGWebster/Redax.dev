@@ -14,7 +14,7 @@ fn main() {
     let _ = gdax_websocket1_thread.join();
 }
 
-fn run_ingress_collector(gdax_websocket1_egress: std::sync::mpsc::Sender) -> () {
+fn run_ingress_collector(gdax_websocket1_egress) -> () {
     let (mut socket, response) =
         connect(Url::parse("wss://echo.websocket.org").unwrap()).expect("Can't connect");
 
