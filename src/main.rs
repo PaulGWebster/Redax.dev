@@ -45,11 +45,15 @@ fn main() {
 
     // Our data harvesting threads (4 of)
     // 1
-    let (gdax_websocket1_ipc1tx, gdax_websocket1_ipc1_rx) = channel();
-    let (gdax_websocket1_ipc1tx, gdax_websocket1_ipc1rx) = channel();
+    let (gdax_websocket1_ipc1_send, gdax_websocket1_ipc1_recv) = channel();
+    let (gdax_websocket1_ipc2_send, gdax_websocket1_ipc2_recv) = channel();
     let gdax_websocket1_thread = thread::spawn(
-        move || { 
-            run_ingress_collector(gdax_websocket1_tx,1) 
+        move || {
+            run_ingress_collector(
+            gdax_websocket1_ipc1_send,
+            gdax_websocket1_ipc2_recv,
+            "".to_string()
+            )
         }
     );
 
@@ -102,6 +106,11 @@ fn run_ingress_collector(
     ipc_from_main: std::sync::mpsc::Receiver<String>,
     mut json_packet: String
 ) -> () {
+    if json_packet.len() == 0 {
+        // This is a thread in waiting, block till 
+        // we get told what to say
+        json_packet = ipc_from_main.recv().unwrap();
+    }
     loop {
         let mut rx_first: bool;
         let (mut socket, response) =
