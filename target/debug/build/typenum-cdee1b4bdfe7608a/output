@@ -1,2 +1,0 @@
-cargo:rustc-env=TYPENUM_BUILD_CONSTS=C:\Users\paulg\Documents\project\redax.dev\rust\target\debug\build\typenum-cdee1b4bdfe7608a\out\consts.rs
-cargo:rustc-env=TYPENUM_BUILD_OP=C:\Users\paulg\Documents\project\redax.dev\rust\target\debug\build\typenum-cdee1b4bdfe7608a\out\op.rs
