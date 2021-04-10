@@ -4,6 +4,7 @@ extern crate serde;
 use tungstenite::{connect, Message};
 use url::Url;
 
+use std::collections::HashSet;
 use std::sync::mpsc::channel;
 use std::{thread, time};
 
@@ -13,7 +14,6 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 const RECONNECT_DELAY: Duration = time::Duration::from_millis(1);
-const WS_SUBSCRIBE_LIST: &'static str = "{\"channels\":[{\"name\":\"status\"}],\"type\":\"subscribe\"}";
 
 // JSON Structures
 #[derive(Serialize, Deserialize, Debug)]
@@ -27,34 +27,88 @@ struct SubscriptionJsonRoot {
 }
 
 fn main() {
-    let (gdax_subscription_watcher_tx_original, gdax_subscription_watcher_rx) = channel();
-    let gdax_subscription_watcher_tx = gdax_subscription_watcher_tx_original.clone();
-    let gdax_subscription_watcher_thread = thread::spawn(move || { run_ingress_collector(gdax_subscription_watcher_tx_original, 0) });
+    let mut gdax_subscription_items = HashSet::new();
 
-    // let (gdax_websocket1_tx, gdax_websocket1_rx) = channel();
-    // let gdax_websocket1_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket1_tx) });
+    // Our subscription watcher thread
+    let ws_subscribe_json = r#"{"channels":[{"name":"status"}],"type":"subscribe"}"#;
+    let (gdax_subscription_watcher_ipc1_send, gdax_subscription_watcher_ipc1_recv) = channel();
+    let (gdax_subscription_watcher_ipc2_send, gdax_subscription_watcher_ipc2_recv) = channel();
+    let gdax_subscription_watcher_thread = thread::spawn(
+        move || { 
+            run_ingress_collector(
+                gdax_subscription_watcher_ipc1_send,
+                gdax_subscription_watcher_ipc2_recv,
+                ws_subscribe_json.to_string()
+            ) 
+        }
+    );
+
+    // Our data harvesting threads (4 of)
+    // 1
+    let (gdax_websocket1_ipc1tx, gdax_websocket1_ipc1_rx) = channel();
+    let (gdax_websocket1_ipc1tx, gdax_websocket1_ipc1rx) = channel();
+    let gdax_websocket1_thread = thread::spawn(
+        move || { 
+            run_ingress_collector(gdax_websocket1_tx,1) 
+        }
+    );
 
     // let (gdax_websocket2_tx, gdax_websocket2_rx) = channel();
-    // let gdax_websocket2_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket2_tx) });
-    
-    loop {
-        let message = gdax_subscription_watcher_rx.recv().unwrap();
-        let packetroot: SubscriptionJsonRoot = serde_json::from_str(&message).unwrap();
-        // println!("BLAH: {:?}", deserialized);
-        let online_products: Vec<_> = packetroot.products.into_iter().filter(|product| product.status == "online").collect();
-    }
+    // let gdax_websocket2_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket2_tx,1) });
 
-    // let _ = gdax_subscription_watcher_thread.join();
+    // let (gdax_websocket3_tx, gdax_websocket3_rx) = channel();
+    // let gdax_websocket3_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket3_tx,1) });
+
+    // let (gdax_websocket4_tx, gdax_websocket4_rx) = channel();
+    // let gdax_websocket4_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket4_tx,1) });
+
+    // Main processing loop
+    loop {
+        // step 1 - check for any new subscription returns
+        match gdax_subscription_watcher_ipc1_recv.try_recv() {
+            Ok(message) => {
+                let mut gdax_subscription_items_buffer = HashSet::new();
+    
+                let packetroot: SubscriptionJsonRoot = serde_json::from_str(&message).unwrap();
+                let online_products: Vec<_> = packetroot.products.into_iter().filter(|product| product.status == "online").collect();
+                let product_ids: Vec<_> = online_products.iter().map(|product| product.id.clone()).collect();
+
+                // Itereate over the 
+                for product_id in &product_ids {
+                    println!("x: {}",product_id);
+                    gdax_subscription_items_buffer.insert(product_id.clone());
+                }
+        
+                // Overwrite the main buffer
+                gdax_subscription_items = gdax_subscription_items_buffer;
+            },
+            Err(_) => {
+                // The subscription items list may never be empty
+                // otherwise any watchers will not know what to watch for
+                // in the event it is, assume we are not initilized yet and 
+                // simply goto the next iteration
+                if gdax_subscription_items.is_empty() {
+                    thread::sleep(RECONNECT_DELAY);
+                    continue;
+                }
+            }
+        };
+
+    }
 }
 
-fn run_ingress_collector(gdax_websocket1_tx: std::sync::mpsc::Sender<String>, subscription_type: u8) -> () {
+fn run_ingress_collector(
+    ipc_to_main: std::sync::mpsc::Sender<String>,
+    ipc_from_main: std::sync::mpsc::Receiver<String>,
+    mut json_packet: String
+) -> () {
     loop {
         let mut rx_first: bool;
         let (mut socket, response) =
             connect(Url::parse("wss://ws-feed.pro.coinbase.com").unwrap()).expect("Can't connect");
 
         let status_code =  response.status();
-        println!("Response HTTP code: {}", status_code);
+        //println!("Response HTTP code: {}", status_code);
         if status_code != 101 {
             thread::sleep(RECONNECT_DELAY);
             // If we did not get the right status wait 1ms and just retry to recon
@@ -64,31 +118,46 @@ fn run_ingress_collector(gdax_websocket1_tx: std::sync::mpsc::Sender<String>, su
         // As we are connected, reset the first connect counter
         rx_first = true;
 
-        if subscription_type == 0 {
-            // We are the primary subscriber in charge of harvesting the main list
-            socket.write_message(Message::Text(WS_SUBSCRIBE_LIST.to_string())).unwrap();
-        }
-        else {
-            println!("Unimplemented type: {}",subscription_type.to_string());
-        }
-        
-        loop {
-            let msg = socket.read_message().expect("Error reading message");
+        // Send our subscription message
+        socket.write_message(Message::Text(json_packet.to_string())).unwrap();
+
+        'websocket_read: loop {
+            let msg = match socket.read_message() {
+                Ok(message_read) => {
+                    // Err good, do nothing?
+                    message_read
+                },
+                Err(exception) => {
+                    println!("WebSocket raised error! {}",exception);
+                    break;
+                },
+            };
+
             if rx_first == true{
                 // This is purposeful, the first message will be a repeat of what we subscribed to.
                 rx_first = false;
-                continue
+                continue 'websocket_read;
             }
 
-            match gdax_websocket1_tx.send(msg.to_string()) {
+            match ipc_to_main.send(msg.to_string()) {
                 Ok(message) => {
                     message
                 }
                 Err(e) => {
-                    println!("IMPOSSIBLE Channel problem? type({}) exception({})",subscription_type.to_string(),e);
+                    println!("IMPOSSIBLE Channel problem? exception({})",e);
                 }
             }
 
+            match ipc_from_main.try_recv() {
+                Ok(message) => {
+                    // We have a message from our parent
+                    json_packet = message;
+                },
+                Err(_) => {
+                    // We got nothing, just continue processing
+                    continue 'websocket_read;
+                }
+            }
         }
     };
 }
