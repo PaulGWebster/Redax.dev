@@ -26,6 +26,17 @@ struct SubscriptionJsonRoot {
     products:Vec<SubscriptionJsonRootProductsElement>
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct SubscribeProductRoot {
+    r#type: String,
+    channels: SubscribeProductRootChannel
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct SubscribeProductRootChannel {
+    name: String, // Should be 'full'
+    product_ids: Vec<String>
+}
+
 fn main() {
     let mut gdax_subscription_items = HashSet::new();
 
@@ -56,15 +67,21 @@ fn main() {
             )
         }
     );
-
-    // let (gdax_websocket2_tx, gdax_websocket2_rx) = channel();
-    // let gdax_websocket2_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket2_tx,1) });
-
-    // let (gdax_websocket3_tx, gdax_websocket3_rx) = channel();
-    // let gdax_websocket3_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket3_tx,1) });
-
-    // let (gdax_websocket4_tx, gdax_websocket4_rx) = channel();
-    // let gdax_websocket4_thread = thread::spawn(move || { run_ingress_collector(gdax_websocket4_tx,1) });
+    // 2
+    let (gdax_websocket2_ipc1_send, gdax_websocket2_ipc1_recv) = channel();
+    let (gdax_websocket2_ipc2_send, gdax_websocket2_ipc2_recv) = channel();
+    let gdax_websocket2_thread = thread::spawn(
+        move || {
+            run_ingress_collector(
+            gdax_websocket2_ipc1_send,
+            gdax_websocket2_ipc2_recv,
+            "".to_string()
+            )
+        }
+    );
+    // Send a compiled json packet
+    //println!("Blah: {}",generate_subscribe_full_channel(gdax_subscription_items.clone()));
+    // gdax_websocket1_ipc2_send.send(generate_subscribe_full_channel(gdax_subscription_items.clone()));
 
     // Main processing loop
     loop {
@@ -77,7 +94,7 @@ fn main() {
                 let online_products: Vec<_> = packetroot.products.into_iter().filter(|product| product.status == "online").collect();
                 let product_ids: Vec<_> = online_products.iter().map(|product| product.id.clone()).collect();
 
-                // Itereate over the 
+                // Itereate over the
                 for product_id in &product_ids {
                     println!("x: {}",product_id);
                     gdax_subscription_items_buffer.insert(product_id.clone());
@@ -101,6 +118,20 @@ fn main() {
     }
 }
 
+// Accept a HashSet and return a JSON query as string with all channels, fully subscribed
+fn generate_subscribe_full_channel(gdax_valid_product_ids: HashSet<String>) -> String
+{
+    let gdax_product_list: Vec<String> = gdax_valid_product_ids.into_iter().collect();
+    let subscribe_packet = SubscribeProductRoot {
+        r#type: "subscribe".to_string(),
+        channels: SubscribeProductRootChannel {
+            name: "full".to_string(),
+            product_ids: gdax_product_list
+        }
+    };
+    return serde_json::to_string(&subscribe_packet).unwrap();
+}
+
 fn run_ingress_collector(
     ipc_to_main: std::sync::mpsc::Sender<String>,
     ipc_from_main: std::sync::mpsc::Receiver<String>,
@@ -109,6 +140,7 @@ fn run_ingress_collector(
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
         // we get told what to say
+        println!("Thread waiting\n");
         json_packet = ipc_from_main.recv().unwrap();
     }
     loop {
