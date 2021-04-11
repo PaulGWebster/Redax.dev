@@ -153,25 +153,13 @@ fn main() {
         if flag_update_subscriptions {
             let subscribe_json = generate_subscribe_full_channel(gdax_productid_online.clone());
 
-            match gdax_websocket1_ipc2_send.send(subscribe_json.clone()) {
-                Ok(_) => {},
-                Err(e) => {
-                    println!("Error sending on channel for websocket1! '{}'",e);
-                    break;
-                }
-            }
-            match gdax_websocket2_ipc2_send.send(subscribe_json.clone()) {
-                Ok(_) => {},
-                Err(e) => {
-                    println!("Error sending on channel for websockett2 '{}'",e);
-                    break;
-                }
-            }
-            match gdax_websocket3_ipc2_send.send(subscribe_json.clone()) {
-                Ok(_) => {},
-                Err(e) => {
-                    println!("Error sending on channel for websocket1! '{}'",e);
-                    break;
+            for sender in &[&gdax_websocket1_ipc2_send, &gdax_websocket2_ipc2_send, &gdax_websocket3_ipc2_send] { 
+                match sender.send(subscribe_json.clone()) {
+                    Ok(_) => {},
+                    Err(exception) => {
+                        println!("[core] Error sending on websocket channel '{}'",exception);
+                        break;
+                    }
                 }
             }
         }
