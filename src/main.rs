@@ -212,9 +212,9 @@ fn run_ingress_collector(
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
         // we get told what to say
-        println!("[WebSocket] Starting.\n");
+        println!("[WebSocket] Starting.");
         json_packet = ipc_from_main.recv().unwrap();
-        println!("[WebSocket] running.]\n");
+        println!("[WebSocket] Running.");
     }
 
     loop {
@@ -240,7 +240,7 @@ fn run_ingress_collector(
                     message_read
                 },
                 Err(exception) => {
-                    println!("WebSocket raised error! {}",exception);
+                    println!("[WebSocket] Exception raised: {}",exception);
                     break;
                 },
             };
@@ -250,7 +250,7 @@ fn run_ingress_collector(
                 match serde_json::from_str(&msg.clone().to_string()) {
                     Ok(obj) => {obj},
                     Err(exception) => {
-                        println!("JSON decode error! {}",exception);
+                        println!("[WebSocket] JSON decode error! {}",exception);
                         break;
                     },
                 };
@@ -264,7 +264,7 @@ fn run_ingress_collector(
                         message
                     }
                     Err(e) => {
-                        println!("IMPOSSIBLE Channel problem? exception({})",e);
+                        println!("[WebSocket] Channel problem 1:{}",e);
                     }
                 }
             }
@@ -282,7 +282,7 @@ fn run_ingress_collector(
                         json_test
                     },
                     Err(e) => {
-                        println!("Failed to SET REDIS DATA: {}, error was: {}", pkey_clone, e);
+                        println!("[WebSocket] REDIS SET problem, {} -> {}",pkey_clone, e);
                         continue;
                     }
                 };
