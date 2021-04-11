@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 const RECONNECT_DELAY: Duration = time::Duration::from_millis(1);
+const THROTTLE_DELAY: Duration = time::Duration::from_millis(100);
 const REDIS_PATH_TCP: &'static str = "redis+unix:///tmp/redis.sock";
 const REDIS_PATH_UNIX: &'static str = "redis://127.0.0.1:6379";
 
@@ -117,23 +118,25 @@ fn main() {
     // Main processing loop
     loop {
         // A inscope place to notify of a subscription update
-        let mut updated_subs = false;
-        let mut thread_throttle = true;
+        let mut flag_update_subscriptions = false;
+        let mut flag_thread_throttle = true;
 
         // step 1 - check for any new subscription returns
         match gdax_subscription_watcher_ipc1_recv.try_recv() {
             Ok(message) => {
-                thread_throttle = false;
+                // If we received a message there may be more, disable the throttle
+                flag_thread_throttle = false;
 
+                // Create a mutatable buffer - so we can overwrite the primary buffer instantly.
                 let mut gdax_productid_buffer = HashSet::new();
     
+                // LEARN ME/TODO: 
                 let packetroot: SubscriptionJsonRoot = serde_json::from_str(&message).unwrap();
                 let online_products: Vec<_> = packetroot.products.into_iter().filter(|product| product.status == "online").collect();
                 let product_ids: Vec<_> = online_products.iter().map(|product| product.id.clone()).collect();
 
-                // Itereate over the
+                // Itereate over the product_ids Vec and add them to the HashSet
                 for product_id in &product_ids {
-                    //println!("x: {}",product_id);
                     gdax_productid_buffer.insert(product_id.clone());
                 }
         
@@ -145,9 +148,8 @@ fn main() {
                 if product_id_difference.count() > 0 {
                     // Ok we need to update the primary store
                     gdax_productid_online = gdax_productid_buffer;
-                    // When we process it later in this loop, we can check if it 
-                    // needs an update:
-                    updated_subs = true;
+                    // Let us also tell everyone else about the new subscription options
+                    flag_update_subscriptions = true;
                 }
             },
             Err(_) => {
@@ -163,9 +165,7 @@ fn main() {
         };
 
         // Process for our ingress workers
-        if updated_subs {
-            thread_throttle = false;
-
+        if flag_update_subscriptions {
             let subscribe_json = generate_subscribe_full_channel(gdax_productid_online.clone());
 
             match gdax_websocket1_ipc2_send.send(subscribe_json.clone()) {
@@ -182,14 +182,26 @@ fn main() {
                     break;
                 }
             }
+            match gdax_websocket3_ipc2_send.send(subscribe_json.clone()) {
+                Ok(_) => {},
+                Err(e) => {
+                    println!("Error sending on channel for websocket1! '{}'",e);
+                    break;
+                }
+            }
+            match gdax_websocket4_ipc2_send.send(subscribe_json.clone()) {
+                Ok(_) => {},
+                Err(e) => {
+                    println!("Error sending on channel for websockett2 '{}'",e);
+                    break;
+                }
+            }
         }
 
-        // Here we might want to read from all those threads and remove duplicates...
-        // however we might be better with a global object all threads can access
-        // and let them figure it out themself
-
-        if thread_throttle {
-            thread::sleep(RECONNECT_DELAY * 10);
+        // There is not a high amount of activity on the main thread, so if nothing 
+        // removed the thread_throttle let us wait for THROTTLE_DELAY
+        if flag_thread_throttle {
+            thread::sleep(THROTTLE_DELAY);
         }
     }
 }
@@ -240,6 +252,7 @@ fn run_ingress_collector(
     }
 
     loop {
+        println!("[WebSocket] Connecting.");
         let (mut socket, response) =
             connect(Url::parse("wss://ws-feed.pro.coinbase.com").unwrap()).expect("Can't connect");
 
@@ -298,7 +311,7 @@ fn run_ingress_collector(
                 let pkey_clone = pkey.clone();
 
                 // Set it in the main set
-                match redis::cmd("SETNX").arg(pkey).arg(msg.clone().to_string()).query(&mut redis_con) {
+                let test_redis_set: i8 = match redis::cmd("SETNX").arg(pkey).arg(msg.clone().to_string()).query(&mut redis_con) {
                     Ok(json_test) => {
                         //println!("Success setting REDIS DATA: {}, error was: {}", pkey_clone, json_test);
                         json_test
@@ -308,6 +321,9 @@ fn run_ingress_collector(
                         continue;
                     }
                 };
+                if test_redis_set == 1 {
+                    redis::cmd("PUBLISH").arg(product_id).arg(sequence).execute(&mut redis_con);
+                }
             }
 
             match ipc_from_main.try_recv() {
