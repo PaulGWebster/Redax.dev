@@ -20,27 +20,27 @@ const REDIS_PATH_TCP: &'static str = "redis+unix:///tmp/redis.sock";
 const REDIS_PATH_UNIX: &'static str = "redis://127.0.0.1:6379";
 
 // JSON Structures
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct SubscriptionJsonRootProductsElement {
     id: String,
     status: String
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct SubscriptionJsonRoot {
     products:Vec<SubscriptionJsonRootProductsElement>
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct SubscribeProductRoot {
     r#type: String,
     channels: Vec<SubscribeProductRootChannel>
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct SubscribeProductRootChannel {
     name: String, // Should be 'full'
     product_ids: Vec<String>
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct SubscribedDataPacket {
     r#type: String,
     sequence: Option<u128>,
@@ -89,9 +89,30 @@ fn main() {
             )
         }
     );
-    // Send a compiled json packet
-    //println!("Blah: {}",generate_subscribe_full_channel(gdax_subscription_items.clone()));
-    // gdax_websocket1_ipc2_send.send(generate_subscribe_full_channel(gdax_subscription_items.clone()));
+    // 3
+    let (gdax_websocket3_ipc1_send, _gdax_websocket3_ipc1_recv) = channel();
+    let (gdax_websocket3_ipc2_send, gdax_websocket3_ipc2_recv) = channel();
+    let _gdax_websocket3_thread = thread::spawn(
+        move || {
+            run_ingress_collector(
+            gdax_websocket3_ipc1_send,
+            gdax_websocket3_ipc2_recv,
+            "".to_string()
+            )
+        }
+    );
+    // 4
+    let (gdax_websocket4_ipc1_send, _gdax_websocket4_ipc1_recv) = channel();
+    let (gdax_websocket4_ipc2_send, gdax_websocket4_ipc2_recv) = channel();
+    let _gdax_websocket4_thread = thread::spawn(
+        move || {
+            run_ingress_collector(
+            gdax_websocket4_ipc1_send,
+            gdax_websocket4_ipc2_recv,
+            "".to_string()
+            )
+        }
+    );
 
     // Main processing loop
     loop {
@@ -203,6 +224,7 @@ fn run_ingress_collector(
     .expect("failed to connect to Redis");
 
     if Path::new(REDIS_PATH_UNIX).exists() {
+        println!("Attempting unix socket connection");
         redis_con = redis::Client::open(REDIS_PATH_UNIX)
             .expect("Invalid connection URL")
             .get_connection()
