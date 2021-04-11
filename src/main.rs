@@ -331,30 +331,11 @@ fn run_tcp_server (
     ipc_from_main: std::sync::mpsc::Receiver<String>
 ) -> () {
     println!("TCP Server thread started");
+    let listener = TcpListener::bind("127.0.0.1:7777").unwrap();
 
     let (channel_tx, channel_rx) = mpsc::channel();
     
     let tx_pipe = channel_tx.clone();
-    thread::spawn(move || { listen(tx_pipe); });
- 
-    let mut connections = 0;
-    loop{
-        match channel_rx.recv(){
-            Ok(signal)  => {
-                match signal{
-                    1 => connections += 1,
-                    2 => break,
-                    _ => println!("Invalid signal received: {}", signal)
-                }
-            }
-            Err(e)      => {
-                println!("Pipe broken - {}", e);
-            }
-        }
-    }
-}
-fn listen(tx_pipe: mpsc::Sender<u32>){
-    let listener = TcpListener::bind("127.0.0.1:7777").unwrap();
 
     for stream in listener.incoming(){
         match stream{
@@ -372,6 +353,7 @@ fn listen(tx_pipe: mpsc::Sender<u32>){
 
     drop(listener);
 }
+
 fn connect_handler(stream: TcpStream, tx_pipe: mpsc::Sender<u32>){
     let mut buf = BufReader::new(stream.try_clone().unwrap());
     loop{
