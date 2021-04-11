@@ -97,9 +97,13 @@ fn main() {
     loop {
         // A inscope place to notify of a subscription update
         let mut updated_subs = false;
+        let mut thread_throttle = true;
+
         // step 1 - check for any new subscription returns
         match gdax_subscription_watcher_ipc1_recv.try_recv() {
             Ok(message) => {
+                thread_throttle = false;
+
                 let mut gdax_productid_buffer = HashSet::new();
     
                 let packetroot: SubscriptionJsonRoot = serde_json::from_str(&message).unwrap();
@@ -130,16 +134,19 @@ fn main() {
                 // otherwise any watchers will not know what to watch for
                 // in the event it is, assume we are not initilized yet and 
                 // simply goto the next iteration
-                if gdax_productid_online.is_empty() {
-                    thread::sleep(RECONNECT_DELAY);
-                    continue;
-                }
+                // if gdax_productid_online.is_empty() {
+                //     thread::sleep(RECONNECT_DELAY);
+                //     continue;
+                // }
             }
         };
 
         // Process for our ingress workers
         if updated_subs {
+            thread_throttle = false;
+
             let subscribe_json = generate_subscribe_full_channel(gdax_productid_online.clone());
+
             match gdax_websocket1_ipc2_send.send(subscribe_json.clone()) {
                 Ok(_) => {},
                 Err(e) => {
@@ -160,6 +167,9 @@ fn main() {
         // however we might be better with a global object all threads can access
         // and let them figure it out themself
 
+        if thread_throttle {
+            thread::sleep(RECONNECT_DELAY * 10);
+        }
     }
 }
 
@@ -202,10 +212,9 @@ fn run_ingress_collector(
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
         // we get told what to say
-        println!("Thread waiting\n");
+        println!("[WebSocket] Starting.\n");
         json_packet = ipc_from_main.recv().unwrap();
-        println!("Thread starting!\n");
-        println!("Init string: {}\n",json_packet);
+        println!("[WebSocket] running.]\n");
     }
 
     loop {
