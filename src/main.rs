@@ -107,7 +107,7 @@ fn main() {
 
                 // Itereate over the
                 for product_id in &product_ids {
-                    println!("x: {}",product_id);
+                    //println!("x: {}",product_id);
                     gdax_productid_buffer.insert(product_id.clone());
                 }
         
