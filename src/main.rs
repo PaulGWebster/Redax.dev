@@ -8,6 +8,7 @@ use url::Url;
 use std::collections::HashSet;
 use std::sync::mpsc::channel;
 use std::{thread, time};
+use std::path::Path;
 
 use time::{Duration};
 
@@ -15,8 +16,8 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 const RECONNECT_DELAY: Duration = time::Duration::from_millis(1);
-//const REDIS_SOCKPATH: &'static str = "redis+unix:///tmp/redis.sock";
-const REDIS_SOCKPATH: &'static str = "redis://127.0.0.1:6379";
+const REDIS_PATH_TCP: &'static str = "redis+unix:///tmp/redis.sock";
+const REDIS_PATH_UNIX: &'static str = "redis://127.0.0.1:6379";
 
 // JSON Structures
 #[derive(Serialize, Deserialize, Debug)]
@@ -184,11 +185,19 @@ fn run_ingress_collector(
     // Predefine some often compared strings for speed
     let _comp_subscription = "subscriptions".to_string();
     let _comp_status = "status".to_string();
-    // Connect us to redis - NEXT THING TO REMOVE
-    let mut redis_con = redis::Client::open(REDIS_SOCKPATH)
-        .expect("Invalid connection URL")
-        .get_connection()
-        .expect("failed to connect to Redis");
+
+    // Connect us to redis - Next thing to go..
+    let mut redis_con = redis::Client::open(REDIS_PATH_TCP)
+    .expect("Invalid connection URL")
+    .get_connection()
+    .expect("failed to connect to Redis");
+
+    if Path::new(REDIS_PATH_UNIX).exists() {
+        redis_con = redis::Client::open(REDIS_PATH_UNIX)
+            .expect("Invalid connection URL")
+            .get_connection()
+            .expect("failed to connect to Redis");
+    }
 
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
