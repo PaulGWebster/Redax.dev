@@ -6,7 +6,7 @@ use tungstenite::{connect, Message};
 use url::Url;
 
 use std::collections::HashSet;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{ channel, TryRecvError };
 use std::{thread, time};
 use std::path::Path;
 
@@ -102,18 +102,6 @@ fn main() {
             )
         }
     );
-    // 4
-    let (gdax_websocket4_ipc1_send, _gdax_websocket4_ipc1_recv) = channel();
-    let (gdax_websocket4_ipc2_send, gdax_websocket4_ipc2_recv) = channel();
-    let _gdax_websocket4_thread = thread::spawn(
-        move || {
-            run_ingress_collector(
-            gdax_websocket4_ipc1_send,
-            gdax_websocket4_ipc2_recv,
-            "".to_string()
-            )
-        }
-    );
 
     // Main processing loop
     loop {
@@ -140,7 +128,7 @@ fn main() {
                     gdax_productid_buffer.insert(product_id.clone());
                 }
         
-                // Compare the current items and the new generated list
+                // Compare the current items and the newly generated
                 let product_id_difference = 
                     gdax_productid_buffer.symmetric_difference(&gdax_productid_online);
 
@@ -152,15 +140,12 @@ fn main() {
                     flag_update_subscriptions = true;
                 }
             },
-            Err(_) => {
-                // The subscription items list may never be empty
-                // otherwise any watchers will not know what to watch for
-                // in the event it is, assume we are not initilized yet and 
-                // simply goto the next iteration
-                // if gdax_productid_online.is_empty() {
-                //     thread::sleep(RECONNECT_DELAY);
-                //     continue;
-                // }
+            Err(TryRecvError::Empty) => {
+                // TryRecv will raise these when there is nothing to read
+            },
+            Err(exception) => {
+                println!("[core] An exception was raised: {}",exception);
+                continue;
             }
         };
 
@@ -186,13 +171,6 @@ fn main() {
                 Ok(_) => {},
                 Err(e) => {
                     println!("Error sending on channel for websocket1! '{}'",e);
-                    break;
-                }
-            }
-            match gdax_websocket4_ipc2_send.send(subscribe_json.clone()) {
-                Ok(_) => {},
-                Err(e) => {
-                    println!("Error sending on channel for websockett2 '{}'",e);
                     break;
                 }
             }
@@ -322,7 +300,7 @@ fn run_ingress_collector(
                     }
                 };
                 if test_redis_set == 1 {
-                    redis::cmd("PUBLISH").arg(product_id).arg(sequence).execute(&mut redis_con);
+                    redis::cmd("PUBLISH").arg(product_id).arg(sequence.clone().to_string()).execute(&mut redis_con);
                 }
             }
 
