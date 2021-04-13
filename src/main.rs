@@ -11,18 +11,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::mpsc::{ channel, TryRecvError };
 use std::{thread, time};
-use std::path::Path;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::str;
 use std::fs;
 use std::os::unix::net::{UnixStream,UnixListener};
 
-
 // Constants
-const RECONNECT_DELAY: Duration = time::Duration::from_millis(1);
-const THROTTLE_DELAY: Duration = time::Duration::from_millis(100);
-const REDIS_PATH_TCP: &'static str = "redis+unix:///tmp/redis.sock";
-const REDIS_PATH_UNIX: &'static str = "redis://127.0.0.1:6379";
+const DELAY_1MS: Duration = time::Duration::from_millis(1);
+const DELAY_100MS: Duration = time::Duration::from_millis(100);
+const REDIS_PATH_UNIX: &'static str = "redis+unix:///tmp/redis.sock";
 const GDAX_SOCK_PATH: &'static str =  "/tmp/gdax.sock";
 
 // JSON Structures
@@ -184,7 +181,7 @@ fn main() {
         // There is not a high amount of activity on the main thread, so if nothing 
         // removed the thread_throttle let us wait for THROTTLE_DELAY
         if flag_thread_throttle {
-            thread::sleep(THROTTLE_DELAY);
+            thread::sleep(DELAY_100MS);
         }
 
         //
@@ -215,18 +212,11 @@ fn run_ingress_collector(
     let _comp_status = "status".to_string();
 
     // Connect us to redis - Next thing to go..
-    let mut redis_con = redis::Client::open(REDIS_PATH_TCP)
+    println!("Attempting unix socket connection");
+    let mut redis_con = redis::Client::open(REDIS_PATH_UNIX)
         .expect("Invalid connection URL")
         .get_connection()
         .expect("failed to connect to Redis");
-
-    if Path::new(REDIS_PATH_UNIX).exists() {
-        println!("Attempting unix socket connection");
-        redis_con = redis::Client::open(REDIS_PATH_UNIX)
-            .expect("Invalid connection URL")
-            .get_connection()
-            .expect("failed to connect to Redis");
-    }
 
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
@@ -244,7 +234,7 @@ fn run_ingress_collector(
         let status_code =  response.status();
         //println!("Response HTTP code: {}", status_code);
         if status_code != 101 {
-            thread::sleep(RECONNECT_DELAY);
+            thread::sleep(DELAY_1MS);
             // If we did not get the right status wait 1ms and just retry to recon
             continue;
         }
@@ -360,11 +350,12 @@ fn af_server_client_manager(
 ) {
     println!("Manager thread started");
 
-    let mut client = BufReader::new(client);
+    let mut client_read = BufReader::new(&client);
+    let mut client_write = BufWriter::new(&client);
 
     // Read the first line this will be what we subscribe to
     let mut operating_mode = String::new();
-    match client.read_line(&mut operating_mode) {
+    match client_read.read_line(&mut operating_mode) {
         Ok(_) => {},
         Err(exception) => {
             println!("UnixSocket client error: {}",exception);
@@ -386,6 +377,68 @@ fn af_server_client_manager(
         return;
     }
 
-    // Create a subscription
+    // Create a redis client
+    println!("Attempting unix socket connection");
+    let mut redis_con_subscriber = redis::Client::open(REDIS_PATH_UNIX)
+        .expect("Invalid connection URL")
+        .get_connection()
+        .expect("failed to connect to Redis (UNIX)");
+
+    let mut redis_con_retriever = redis::Client::open(REDIS_PATH_UNIX)
+        .expect("Invalid connection URL")
+        .get_connection()
+        .expect("failed to connect to Redis (UNIX)");
+
+    // Change the connection type to a pubsub
+    let mut pubsub = redis_con_subscriber.as_pubsub();
+
+    // Create a place to make sure of order
+
+    // Do what the client says
+    pubsub.psubscribe(operating_mode).unwrap();
     
+    loop {
+        let pubsub_message = match pubsub.get_message() {
+            Ok(message_rx_success) => {
+                message_rx_success
+            },
+            Err(_) => {
+                thread::sleep(DELAY_1MS);
+                continue;
+            }
+        };
+
+        // Extract the requirements for the primary key
+        let payload : String = pubsub_message.get_payload().unwrap();
+        let pkey = format!("{}:{}",pubsub_message.get_channel_name(), payload);
+
+        // Retrieve the full packet
+        let json_packet: String = match redis::cmd("GET").arg(pkey).query(&mut redis_con_retriever) {
+            Ok(json_test) => {
+                json_test
+            },
+            Err(exception) => {
+                println!("Failed to read REDIS DATA: {}", exception);
+                continue;
+            }
+        };
+
+        // Write back to the client
+        match client_write.write(json_packet.as_bytes()) {
+            Ok(_) => {
+                match client_write.write("\n".to_string().as_bytes()) {
+                    Ok(_) => {},
+                    Err(exception) => {
+                        println!("Failed to write client data!: {}", exception);
+                        break
+                    },
+                }
+            },
+            Err(exception) => {
+                println!("Failed to write client data!: {}", exception);
+                break;
+            }
+        };
+
+    };
 }
