@@ -16,6 +16,7 @@ use std::str;
 use std::fs;
 use std::os::unix::net::{UnixStream,UnixListener};
 
+
 // Constants
 const DELAY_1MS: Duration = time::Duration::from_millis(1);
 const DELAY_100MS: Duration = time::Duration::from_millis(100);
@@ -50,7 +51,6 @@ struct SubscribedDataPacket {
     sequence: Option<u128>,
     product_id: Option<String>
 }
-
 // Other structs
 #[derive(Hash, Eq, PartialEq)]
 struct Sequence {
@@ -60,20 +60,6 @@ struct Sequence {
 
 fn main() {
     let mut gdax_productid_online = HashSet::new();
-
-    // Our subscription watcher thread
-    let ws_subscribe_json = r#"{"channels":[{"name":"status"}],"type":"subscribe"}"#;
-    let (gdax_subscription_watcher_ipc1_send, gdax_subscription_watcher_ipc1_recv) = channel();
-    let (_gdax_subscription_watcher_ipc2_send, gdax_subscription_watcher_ipc2_recv) = channel();
-    let _gdax_subscription_watcher_thread = thread::spawn(
-        move || { 
-            run_ingress_collector(
-                gdax_subscription_watcher_ipc1_send,
-                gdax_subscription_watcher_ipc2_recv,
-                ws_subscribe_json.to_string()
-            ) 
-        }
-    );
 
     // Our data harvesting threads (4 of)
     // 1
@@ -113,15 +99,29 @@ fn main() {
         }
     );
 
-    // Start a TCPServer
+    // Start a AFUNIX server
     let (gdax_refine_ipc1_send, _gdax_refine_ipc1_recv) = channel();
-    let (_gdax_refine_ipc2_send, gdax_refine_ipc2_recv) = channel();
+    let (gdax_refine_ipc2_send, gdax_refine_ipc2_recv) = channel();
     let _gdax_refine_thread = thread::spawn(
         move || {
             af_server_init (
                 gdax_refine_ipc1_send,
                 gdax_refine_ipc2_recv
             )
+        }
+    );
+
+    // Our subscription watcher thread
+    let ws_subscribe_json = r#"{"channels":[{"name":"status"}],"type":"subscribe"}"#;
+    let (gdax_subscription_watcher_ipc1_send, gdax_subscription_watcher_ipc1_recv) = channel();
+    let (_gdax_subscription_watcher_ipc2_send, gdax_subscription_watcher_ipc2_recv) = channel();
+    let _gdax_subscription_watcher_thread = thread::spawn(
+        move || { 
+            run_ingress_collector(
+                gdax_subscription_watcher_ipc1_send,
+                gdax_subscription_watcher_ipc2_recv,
+                ws_subscribe_json.to_string()
+            ) 
         }
     );
 
@@ -175,6 +175,9 @@ fn main() {
         if flag_update_subscriptions {
             let subscribe_json = generate_subscribe_full_channel(gdax_productid_online.clone());
 
+            // Update the global
+            //CURRENCIES.insert(&"BTC-USD".to_string());
+            // Send the subsctibe JSON to all consumer threads
             for sender in &[&gdax_websocket1_ipc2_send, &gdax_websocket2_ipc2_send, &gdax_websocket3_ipc2_send] { 
                 match sender.send(subscribe_json.clone()) {
                     Ok(_) => {},
@@ -184,6 +187,14 @@ fn main() {
                     }
                 }
             }
+            // Send a raw json keyval set to the client
+            match gdax_refine_ipc2_send.send(gdax_productid_online.clone()) {
+                Ok(_) => {},
+                Err(exception) => {
+                    println!("[core] Error sending on AFUNIX channel '{}'",exception);
+                    break;
+                },
+            }
         }
 
         // There is not a high amount of activity on the main thread, so if nothing 
@@ -191,8 +202,6 @@ fn main() {
         if flag_thread_throttle {
             thread::sleep(DELAY_100MS);
         }
-
-        //
     }
 }
 
@@ -327,9 +336,10 @@ fn run_ingress_collector(
 // to another thread
 fn af_server_init (
     ipc_to_main: std::sync::mpsc::Sender<String>,
-    ipc_from_main: std::sync::mpsc::Receiver<String>
+    ipc_from_main: std::sync::mpsc::Receiver<HashSet<String>>
 ) -> () {
     println!("[AFUNIX] Server thread started");
+    let mut currency_list = ipc_from_main.recv().unwrap().clone();
 
     match fs::remove_file(GDAX_SOCK_PATH) {
         _ => {},
@@ -339,8 +349,30 @@ fn af_server_init (
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                // Loop all incoming updates to get the latest
+                'update_currency_list: loop {
+                    match ipc_from_main.try_recv() {
+                        Ok(message) => {
+                            // We have a message from our parent
+                            currency_list = message.clone();
+                        },
+                        Err(_) => {
+                            // We got nothing, just continue processing
+                            break 'update_currency_list;
+                        }
+                    }
+                }
+
                 let ipc_to_main_clone = ipc_to_main.clone();
-                thread::spawn(|| af_server_client_manager(stream,ipc_to_main_clone));
+                let (ipc_to_child, ipc_from_master) = channel();
+                match ipc_to_child.send(currency_list.clone()) {
+                    Ok(_) => {},
+                    Err(exception) => {
+                        println!("Error queueing message in channel for afunix {}",exception);
+                        continue;
+                    },
+                }
+                thread::spawn(|| af_server_client_manager(stream,ipc_to_main_clone,ipc_from_master));
             },
             Err(err) => {
                 println!("[AFUNIX] Error: {}", err);
@@ -354,12 +386,26 @@ fn af_server_init (
 
 fn af_server_client_manager(
     client: UnixStream, 
-    ipc_to_main: std::sync::mpsc::Sender<String>
+    _ipc_to_main: std::sync::mpsc::Sender<String>,
+    ipc_from_master: std::sync::mpsc::Receiver<HashSet<String>>
 ) {
     println!("[AFUNIX] Manager thread started");
 
     let mut client_read = BufReader::new(&client);
     let mut client_write = BufWriter::new(&client);
+    let mut currency_list = HashSet::new();
+
+    // Fetch the HashSet of availible currencies
+    match ipc_from_master.recv() {
+        Ok(currency_list_buffer) => {
+            currency_list = currency_list_buffer;
+        },
+        Err(_) => {}
+    }
+
+    // Convert the hashset to a vec
+    let currencies: Vec<_> = currency_list.into_iter().collect();
+    println!("{}", currencies.join(", "));
 
     // Read the first line this will be what we subscribe to
     let mut operating_mode = String::new();
@@ -401,11 +447,13 @@ fn af_server_client_manager(
     let mut pubsub = redis_con_subscriber.as_pubsub();
 
     // Create a place to make sure of order of packets is ensured
-    HashSet<Sequence> sequenceCheck = HashSet::new();
+    //let mut sequence_check = HashSet::new();
 
     // Do what the client says
     pubsub.psubscribe(operating_mode).unwrap();
     
+    // Ask what channels are availible
+
     loop {
         let pubsub_message = match pubsub.get_message() {
             Ok(message_rx_success) => {
