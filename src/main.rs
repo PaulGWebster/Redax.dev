@@ -2,29 +2,28 @@ extern crate serde_json;
 extern crate serde;
 extern crate redis;
 
+// Using statements, I think these are internal crates?
 use tungstenite::{connect, Message};
 use url::Url;
+use time::Duration;
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashSet;
 use std::sync::mpsc::{ channel, TryRecvError };
-use std::sync::mpsc;
 use std::{thread, time};
 use std::path::Path;
-
-use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream, Shutdown};
-use std::io::BufReader;
+use std::io::{BufRead, BufReader};
 use std::str;
+use std::fs;
+use std::os::unix::net::{UnixStream,UnixListener};
 
-use time::{Duration};
 
-use serde::{Deserialize, Serialize};
-//use serde_json::Result;
-
+// Constants
 const RECONNECT_DELAY: Duration = time::Duration::from_millis(1);
 const THROTTLE_DELAY: Duration = time::Duration::from_millis(100);
 const REDIS_PATH_TCP: &'static str = "redis+unix:///tmp/redis.sock";
 const REDIS_PATH_UNIX: &'static str = "redis://127.0.0.1:6379";
+const GDAX_SOCK_PATH: &'static str =  "/tmp/gdax.sock";
 
 // JSON Structures
 #[derive(Serialize, Deserialize)]
@@ -111,10 +110,10 @@ fn main() {
 
     // Start a TCPServer
     let (gdax_refine_ipc1_send, _gdax_refine_ipc1_recv) = channel();
-    let (gdax_refine_ipc2_send, gdax_refine_ipc2_recv) = channel();
+    let (_gdax_refine_ipc2_send, gdax_refine_ipc2_recv) = channel();
     let _gdax_refine_thread = thread::spawn(
         move || {
-            run_tcp_server (
+            af_server_init (
                 gdax_refine_ipc1_send,
                 gdax_refine_ipc2_recv
             )
@@ -217,9 +216,9 @@ fn run_ingress_collector(
 
     // Connect us to redis - Next thing to go..
     let mut redis_con = redis::Client::open(REDIS_PATH_TCP)
-    .expect("Invalid connection URL")
-    .get_connection()
-    .expect("failed to connect to Redis");
+        .expect("Invalid connection URL")
+        .get_connection()
+        .expect("failed to connect to Redis");
 
     if Path::new(REDIS_PATH_UNIX).exists() {
         println!("Attempting unix socket connection");
@@ -326,53 +325,67 @@ fn run_ingress_collector(
     };
 }
 
-fn run_tcp_server (
+// This creates the initial unix socket and hands off the management
+// to another thread
+fn af_server_init (
     ipc_to_main: std::sync::mpsc::Sender<String>,
     ipc_from_main: std::sync::mpsc::Receiver<String>
 ) -> () {
-    println!("TCP Server thread started");
-    let listener = TcpListener::bind("127.0.0.1:7777").unwrap();
+    println!("Server thread started");
 
-    let (channel_tx, channel_rx) = mpsc::channel();
-    
-    let tx_pipe = channel_tx.clone();
+    match fs::remove_file(GDAX_SOCK_PATH) {
+        _ => {},
+    };
+    let listener = UnixListener::bind(GDAX_SOCK_PATH).unwrap();
 
-    for stream in listener.incoming(){
-        match stream{
-            Ok(stream)  => {
-                println!("Received a connection! - {}:{}", stream.peer_addr().unwrap().ip(), stream.peer_addr().unwrap().port());
-                let txp = tx_pipe.clone();
-                thread::spawn(move || {
-                    connect_handler(stream, txp);
-                });
-                tx_pipe.send(1).unwrap();
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let ipc_to_main_clone = ipc_to_main.clone();
+                thread::spawn(|| af_server_client_manager(stream,ipc_to_main_clone));
+            },
+            Err(err) => {
+                println!("Error: {}", err);
+                break;
             }
-            Err(e)      => println!("Error! - {}", e)
         }
     }
 
     drop(listener);
 }
 
-fn connect_handler(stream: TcpStream, tx_pipe: mpsc::Sender<u32>){
-    let mut buf = BufReader::new(stream.try_clone().unwrap());
-    loop{
-        //let mut s = [0u8; 4096];
-        let mut s = String::new();
-        match buf.read_line(&mut s){
-            Ok(b)  => {
-                if b == 0 { break; }
-                print!("Received data ({} bytes): {}", b, s);
-                if s.contains("quit"){
-                    tx_pipe.send(2).unwrap();
-                    break;
-                }
-                //println!("Received data ({} bytes): {}", b, std::str::from_utf8(&s).unwrap())
-            }
-            Err(e) => println!("Error receiving data! - {}", e)
+fn af_server_client_manager(
+    client: UnixStream, 
+    ipc_to_main: std::sync::mpsc::Sender<String>
+) {
+    println!("Manager thread started");
+
+    let mut client = BufReader::new(client);
+
+    // Read the first line this will be what we subscribe to
+    let mut operating_mode = String::new();
+    match client.read_line(&mut operating_mode) {
+        Ok(_) => {},
+        Err(exception) => {
+            println!("UnixSocket client error: {}",exception);
+            return;
         }
+    };
+
+    // Strip newline from the read line
+    while operating_mode.ends_with('\n') || operating_mode.ends_with('\r') {
+        operating_mode.pop();
     }
 
-    println!("Client {}:{} dropped", stream.peer_addr().unwrap().ip(), stream.peer_addr().unwrap().port());
-    stream.shutdown(Shutdown::Both).unwrap();
+    // Check we have a valid operating mode
+    if operating_mode.len() != 0 {
+        println!("OperatingMode: {}",operating_mode);
+    }
+    else {
+        println!("Manager thread exiting.");
+        return;
+    }
+
+    // Create a subscription
+    
 }
