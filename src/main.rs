@@ -21,6 +21,7 @@ const DELAY_1MS: Duration = time::Duration::from_millis(1);
 const DELAY_100MS: Duration = time::Duration::from_millis(100);
 const REDIS_PATH_UNIX: &'static str = "redis+unix:///tmp/redis.sock";
 const GDAX_SOCK_PATH: &'static str =  "/tmp/gdax.sock";
+const EMPTY_STRING: &'static str =  "";
 
 // JSON Structures
 #[derive(Serialize, Deserialize)]
@@ -50,6 +51,13 @@ struct SubscribedDataPacket {
     product_id: Option<String>
 }
 
+// Other structs
+#[derive(Hash, Eq, PartialEq)]
+struct Sequence {
+    product: String,
+    value: u128
+}
+
 fn main() {
     let mut gdax_productid_online = HashSet::new();
 
@@ -76,7 +84,7 @@ fn main() {
             run_ingress_collector(
             gdax_websocket1_ipc1_send,
             gdax_websocket1_ipc2_recv,
-            "".to_string()
+            EMPTY_STRING.to_string()
             )
         }
     );
@@ -88,7 +96,7 @@ fn main() {
             run_ingress_collector(
             gdax_websocket2_ipc1_send,
             gdax_websocket2_ipc2_recv,
-            "".to_string()
+            EMPTY_STRING.to_string()
             )
         }
     );
@@ -100,7 +108,7 @@ fn main() {
             run_ingress_collector(
             gdax_websocket3_ipc1_send,
             gdax_websocket3_ipc2_recv,
-            "".to_string()
+            EMPTY_STRING.to_string()
             )
         }
     );
@@ -212,11 +220,11 @@ fn run_ingress_collector(
     let _comp_status = "status".to_string();
 
     // Connect us to redis - Next thing to go..
-    println!("Attempting unix socket connection");
+    println!("[Redis] Attempting unix socket connection");
     let mut redis_con = redis::Client::open(REDIS_PATH_UNIX)
-        .expect("Invalid connection URL")
+        .expect("[Redis] Invalid connection URL")
         .get_connection()
-        .expect("failed to connect to Redis");
+        .expect("[Redis] Failed to connect to Redis");
 
     if json_packet.len() == 0 {
         // This is a thread in waiting, block till 
@@ -321,7 +329,7 @@ fn af_server_init (
     ipc_to_main: std::sync::mpsc::Sender<String>,
     ipc_from_main: std::sync::mpsc::Receiver<String>
 ) -> () {
-    println!("Server thread started");
+    println!("[AFUNIX] Server thread started");
 
     match fs::remove_file(GDAX_SOCK_PATH) {
         _ => {},
@@ -335,7 +343,7 @@ fn af_server_init (
                 thread::spawn(|| af_server_client_manager(stream,ipc_to_main_clone));
             },
             Err(err) => {
-                println!("Error: {}", err);
+                println!("[AFUNIX] Error: {}", err);
                 break;
             }
         }
@@ -348,7 +356,7 @@ fn af_server_client_manager(
     client: UnixStream, 
     ipc_to_main: std::sync::mpsc::Sender<String>
 ) {
-    println!("Manager thread started");
+    println!("[AFUNIX] Manager thread started");
 
     let mut client_read = BufReader::new(&client);
     let mut client_write = BufWriter::new(&client);
@@ -358,7 +366,7 @@ fn af_server_client_manager(
     match client_read.read_line(&mut operating_mode) {
         Ok(_) => {},
         Err(exception) => {
-            println!("UnixSocket client error: {}",exception);
+            println!("[AFUNIX] Client error: {}",exception);
             return;
         }
     };
@@ -370,29 +378,30 @@ fn af_server_client_manager(
 
     // Check we have a valid operating mode
     if operating_mode.len() != 0 {
-        println!("OperatingMode: {}",operating_mode);
+        println!("[AFUNIX] OperatingMode: {}",operating_mode);
     }
     else {
-        println!("Manager thread exiting.");
+        println!("[AFUNIX] Manager thread exiting.");
         return;
     }
 
     // Create a redis client
-    println!("Attempting unix socket connection");
+    println!("[Redis] Attempting unix socket connection");
     let mut redis_con_subscriber = redis::Client::open(REDIS_PATH_UNIX)
-        .expect("Invalid connection URL")
+        .expect("[Redis] Invalid connection URL")
         .get_connection()
-        .expect("failed to connect to Redis (UNIX)");
+        .expect("[Redis] failed to connect to Redis (UNIX)");
 
     let mut redis_con_retriever = redis::Client::open(REDIS_PATH_UNIX)
-        .expect("Invalid connection URL")
+        .expect("[Redis] Invalid connection URL")
         .get_connection()
-        .expect("failed to connect to Redis (UNIX)");
+        .expect("[Redis] failed to connect to Redis (UNIX)");
 
     // Change the connection type to a pubsub
     let mut pubsub = redis_con_subscriber.as_pubsub();
 
-    // Create a place to make sure of order
+    // Create a place to make sure of order of packets is ensured
+    HashSet<Sequence> sequenceCheck = HashSet::new();
 
     // Do what the client says
     pubsub.psubscribe(operating_mode).unwrap();
@@ -418,7 +427,7 @@ fn af_server_client_manager(
                 json_test
             },
             Err(exception) => {
-                println!("Failed to read REDIS DATA: {}", exception);
+                println!("[Redis] Failed to read DATA: {}", exception);
                 continue;
             }
         };
@@ -429,13 +438,13 @@ fn af_server_client_manager(
                 match client_write.write("\n".to_string().as_bytes()) {
                     Ok(_) => {},
                     Err(exception) => {
-                        println!("Failed to write client data!: {}", exception);
+                        println!("[AFUNIX] Failed to write client data!: {}", exception);
                         break
                     },
                 }
             },
             Err(exception) => {
-                println!("Failed to write client data!: {}", exception);
+                println!("[AFUNIX] Failed to write client data!: {}", exception);
                 break;
             }
         };
